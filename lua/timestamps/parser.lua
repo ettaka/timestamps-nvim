@@ -3,15 +3,7 @@
 ---------------------------------------------------------------
 local M = {}
 
-local HOME_TZ = "+02:00"  -- your home timezone
-M.DEFAULT_NOTIFY = "15min"
-
-function M.setup(opts)
-  opts = opts or {}
-  if opts.default_notify then
-    M.DEFAULT_NOTIFY = opts.default_notify
-  end
-end
+M.HOME_TZ = "+02:00"  -- your home timezone
 
 -- convert offset string to seconds
 local function offset_to_seconds(sign, hh, mm)
@@ -40,7 +32,7 @@ function M.parse_iso(ts)
   if suffix == "Z" then
     offset = 0
   elseif suffix == "H" then
-    local sign, hh, mm = HOME_TZ:match("([%+%-])(%d%d):(%d%d)")
+    local sign, hh, mm = M.HOME_TZ:match("([%+%-])(%d%d):(%d%d)")
     offset = offset_to_seconds(sign, hh, mm)
   else
     local sign, hh, mm = suffix:match("([%+%-])(%d%d):(%d%d)")
@@ -69,7 +61,7 @@ function M.parse_iso(ts)
   return epoch
 end
 
-M.local_tz_suffix = function (home_tz)
+M.local_tz_suffix = function ()
   local z = os.date("%z") -- e.g. "+0200"
 
   local sign, hh, mm = z:match("([%+%-])(%d%d)(%d%d)")
@@ -79,7 +71,7 @@ M.local_tz_suffix = function (home_tz)
 
   if formatted == "+00:00" then
     return "Z"
-  elseif formatted == home_tz then
+  elseif formatted == M.HOME_TZ then
     return "H"
   else
     return formatted
