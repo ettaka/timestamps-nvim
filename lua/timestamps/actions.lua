@@ -2,7 +2,7 @@ local M = {}
 
 M.get_timestamp = function (ts_ask)
   local local_tz_suffix = require('timestamps.parser').local_tz_suffix
-  local ts = os.date("%Y-%m-%dT%H:%M", ts_ask) .. local_tz_suffix()
+  local ts = os.date("%Y-%m-%dT%H:%M", ts_ask) .. local_tz_suffix(ts_ask)
   return ts
 end
 
