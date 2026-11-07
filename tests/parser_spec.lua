@@ -19,6 +19,13 @@ local valid = {
   { "2026-10-25T00:30Z",         1792888200, "Helsinki fall-back hour" },
   { "2026-01-15T10:00Z).",       1768471200, "trailing punctuation is ignored" },
   { "2026-01-15T10:00Z,",        1768471200, "trailing comma is ignored" },
+  -- 23:xx local time in Helsinki summer time used to be rejected (os.time read it as standard time, a day later)
+  { "2026-09-30T23:20+03:00",    1790799600, "23:20 with an offset, in Helsinki summer time" },
+  { "2026-07-15T23:59S",         1784149140, "23:59 S in summer" },
+  { "2026-03-29T03:30+03:00",    1774744200, "hour skipped by Helsinki spring-forward" },
+  { "2026-10-25T00:30+03:00",    1792877400, "night before Helsinki fall-back" },
+  { "2026-12-31T23:59+02:00",    1798754340, "last minute of the year" },
+  { "2026-01-01T00:00-01:00",    1767229200, "midnight with a negative offset" },
 }
 for _, c in ipairs(valid) do
   t.test("parse_iso " .. c[3] .. " (" .. c[1] .. ")", function()
@@ -31,6 +38,16 @@ end
 t.test("parse_iso H is fixed +02:00 also in summer (pinned behaviour)", function()
   H.eq(P.parse_iso("2026-07-15T10:00H"), 1784102400)
 end)
+
+-- The result must not depend on the zone Neovim runs in.
+for _, tz in ipairs({ "UTC", "Europe/Helsinki", "America/New_York", "Asia/Kolkata", "Pacific/Auckland" }) do
+  t.test("parse_iso gives the same epochs with TZ=" .. tz, function()
+    local inputs = vim.tbl_map(function(c) return ("%q"):format(c[1]) end, valid)
+    local got = H.eval_in_tz(tz, ("table.concat(vim.tbl_map(function(s) return tostring(require('timestamps.parser').parse_iso(s)) end, { %s }), ',')")
+      :format(table.concat(inputs, ", ")))
+    H.eq(got, table.concat(vim.tbl_map(function(c) return tostring(c[2]) end, valid), ","))
+  end)
+end
 
 local invalid = {
   { "2026-02-30T10:00Z", "Feb 30" },

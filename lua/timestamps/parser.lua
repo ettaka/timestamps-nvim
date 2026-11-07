@@ -35,6 +35,17 @@ end
 --- Validates ISO-8601 format and real-world date/time values.
 --- @param ts string The raw string to parse and validate
 --- @return number|nil epoch The converted UTC timestamp, or nil if invalid
+--- Days since 1970-01-01 for a proleptic Gregorian date (Howard Hinnant's days_from_civil).
+local function days_from_civil(y, m, d)
+  if m <= 2 then y = y - 1 end
+  local era = math.floor(y / 400)
+  local yoe = y - era * 400
+  local mp = (m + 9) % 12
+  local doy = math.floor((153 * mp + 2) / 5) + d - 1
+  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
+  return era * 146097 + doe - 719468
+end
+
 function M.parse_iso(ts)
   if type(ts) ~= "string" then return nil end
 
@@ -79,34 +90,14 @@ function M.parse_iso(ts)
     if sign then offset = offset_to_seconds(sign, hh, mm) end
   end
 
-  -- 4. Construct local fields and catch platform-level bounds (e.g., pre-1970 restrictions)
-  local success, epoch = pcall(os.time, {
-    year = year,
-    month = month,
-    day = day,
-    hour = hour,
-    min = min,
-    sec = 0,
-    isdst = false,
-  })
-  
-  if not success or not epoch then return nil end
+  -- 4. Calendar check (e.g. Feb 30th, Feb 29th in a non-leap year)
+  local leap = (year % 4 == 0 and year % 100 ~= 0) or year % 400 == 0
+  local days_in_month = { 31, leap and 29 or 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 }
+  if day > days_in_month[month] then return nil end
 
-  -- 5. Mathematical check for calendar correctness (e.g., catching Feb 30th)
-  local normalized = os.date("*t", epoch)
-  if normalized.year ~= year or normalized.month ~= month or normalized.day ~= day then
-    return nil 
-  end
-
-  -- Calculate system offset at that specific time (handles DST correctly)
-  local local_offset = os.difftime(
-    os.time(os.date("*t", epoch)),
-    os.time(os.date("!*t", epoch))
-  )
-
-  epoch = epoch - offset + local_offset
-
-  return epoch
+  -- 5. The written wall time is in the zone given by the suffix, so convert it to UTC directly.
+  -- (Going through os.time would read it in the local zone, which breaks around DST.)
+  return days_from_civil(year, month, day) * 86400 + hour * 3600 + min * 60 - offset
 end
 
 --- Zone suffix for local time at `ts` (default: now): "Z", "H" (= HOME_TZ), "S" (= HOME_SUMMER_TZ) or "+hh:mm".
